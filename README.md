@@ -1,5 +1,7 @@
 # Codex Sidebar Chat 0.3.0
 
+![Codex 对话](screenshot.png)
+
 在 Obsidian 桌面端使用本机 Codex 登录账号进行侧边栏对话。请先安装 Codex CLI，并在同一 Windows 用户下运行 `codex login`。插件不保存账号密码或自行读取登录令牌。
 
 ## 安装与更新
