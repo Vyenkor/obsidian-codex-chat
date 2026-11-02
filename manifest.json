@@ -1,0 +1,9 @@
+{
+  "id": "codex-sidebar-chat",
+  "name": "Codex Sidebar Chat",
+  "version": "0.3.0",
+  "minAppVersion": "1.5.0",
+  "description": "在侧边栏使用本机 Codex 进行对话。",
+  "author": "Codex",
+  "isDesktopOnly": true
+}
