@@ -6,7 +6,7 @@ class Rpc {
  constructor(exe,cwd){ this.p=spawn(exe||'codex',['app-server'],{cwd,windowsHide:true,shell:false}); this.seq=0; this.pending=new Map(); let b=''; this.p.stdout.setEncoding('utf8'); this.p.stdout.on('data',x=>{b+=x; let lines=b.split('\n');b=lines.pop(); for(const l of lines){try{let m=JSON.parse(l);if(m.id!=null&&this.pending.has(m.id)){let q=this.pending.get(m.id);this.pending.delete(m.id);clearTimeout(q.timer);m.error?q.reject(Error(m.error.message)):q.resolve(m.result)}}catch{}}}); this.p.stderr.resume(); this.p.on('error',e=>this.fail(e)); this.p.on('close',()=>this.fail(Error('Codex 服务已关闭'))); }
  fail(e){for(const q of this.pending.values()){clearTimeout(q.timer);q.reject(e)}this.pending.clear()}
  call(method,params={}){return new Promise((resolve,reject)=>{const id=++this.seq;const timer=setTimeout(()=>{this.pending.delete(id);reject(Error('Codex 请求超时'))},30000);this.pending.set(id,{resolve,reject,timer});this.p.stdin.write(JSON.stringify({id,method,params})+'\n',e=>{if(e&&this.pending.has(id)){clearTimeout(timer);this.pending.delete(id);reject(e)}})})}
- async init(){await this.call('initialize',{clientInfo:{name:'obsidian_codex_sidebar',title:'Obsidian Codex Sidebar',version:'0.3.0'}});this.p.stdin.write(JSON.stringify({method:'initialized',params:{}})+'\n')}
+ async init(){await this.call('initialize',{clientInfo:{name:'obsidian_codex_sidebar',title:'Obsidian Codex Sidebar',version:'0.3.1'}});this.p.stdin.write(JSON.stringify({method:'initialized',params:{}})+'\n')}
  close(){this.p.kill()}
 }
 
@@ -20,20 +20,89 @@ const SUGGESTIONS = [
   { icon: 'lightbulb', label: '头脑风暴', prompt: '和我一起头脑风暴：', note: false },
 ];
 
-function spark(parent, cls) {
-  const svg = document.createElementNS(SVG_NS, 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('class', `cc-spark ${cls || ''}`);
+const LOGO_STYLES = {
+  mark: '对话标记',
+  spark: '星芒',
+  custom: '自定义 SVG',
+};
+
+function elSvg(name, attrs = {}) {
+  const node = document.createElementNS(SVG_NS, name);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  return node;
+}
+
+function renderSparkMark(svg) {
   const rays = [10, 7, 9.5, 6.5, 10, 7.5, 9, 6.5, 10, 7, 9.5, 7];
   rays.forEach((len, i) => {
     const a = (i * 30 + (i % 2 ? 8 : 0)) * Math.PI / 180;
-    const line = document.createElementNS(SVG_NS, 'line');
-    line.setAttribute('x1', String(12 + Math.cos(a) * 2));
-    line.setAttribute('y1', String(12 + Math.sin(a) * 2));
-    line.setAttribute('x2', String(12 + Math.cos(a) * len));
-    line.setAttribute('y2', String(12 + Math.sin(a) * len));
-    svg.appendChild(line);
+    svg.appendChild(elSvg('line', {
+      x1: String(12 + Math.cos(a) * 2),
+      y1: String(12 + Math.sin(a) * 2),
+      x2: String(12 + Math.cos(a) * len),
+      y2: String(12 + Math.sin(a) * len),
+    }));
   });
+}
+
+function renderChatMark(svg) {
+  svg.appendChild(elSvg('rect', { class: 'cc-logo-tile', x: '1.5', y: '1.5', width: '21', height: '21', rx: '5.5' }));
+  svg.appendChild(elSvg('path', {
+    class: 'cc-logo-fg',
+    'fill-rule': 'evenodd',
+    d: 'M12 5.1c3.42 0 6.2 2.5 6.2 5.6 0 2.2-1.28 4.12-3.24 5.05l.86 2.02-2.86-1.2A6.6 6.6 0 0 1 12 16.7c-3.42 0-6.2-2.5-6.2-5.6S8.58 5.1 12 5.1Zm-2.55 3.95 2.55 1.9-2.55 1.9v-1.2l1.2-.7-1.2-.7v-1.2Zm3.35 3.35h3.35v1.25h-3.35z',
+  }));
+}
+
+function sanitizeCustomSvg(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return null;
+  const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+  if (doc.querySelector('parsererror')) return null;
+  const source = doc.documentElement;
+  if (!source || source.tagName.toLowerCase() !== 'svg') return null;
+  const out = elSvg('svg');
+  const viewBox = source.getAttribute('viewBox') || '0 0 24 24';
+  out.setAttribute('viewBox', viewBox);
+  const walk = (from, to) => {
+    for (const child of Array.from(from.childNodes)) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        if (child.textContent.trim()) to.appendChild(document.createTextNode(child.textContent));
+        continue;
+      }
+      if (child.nodeType !== Node.ELEMENT_NODE) continue;
+      const tag = child.tagName.toLowerCase();
+      if (['script', 'foreignobject', 'iframe', 'image', 'use', 'a'].includes(tag)) continue;
+      const next = elSvg(tag);
+      for (const attr of Array.from(child.attributes)) {
+        const name = attr.name.toLowerCase();
+        if (name.startsWith('on') || name === 'href' || name === 'xlink:href') continue;
+        next.setAttribute(attr.name, attr.value);
+      }
+      walk(child, next);
+      to.appendChild(next);
+    }
+  };
+  walk(source, out);
+  return out.childNodes.length ? out : null;
+}
+
+function logo(parent, cls, settings = {}) {
+  const style = settings.logoStyle || 'mark';
+  const svg = elSvg('svg', { viewBox: '0 0 24 24', class: `cc-logo ${style === 'spark' ? 'cc-logo-spark' : 'cc-logo-mark'} ${cls || ''}` });
+  if (style === 'custom') {
+    const custom = sanitizeCustomSvg(settings.customLogoSvg);
+    if (custom) {
+      svg.setAttribute('viewBox', custom.getAttribute('viewBox') || '0 0 24 24');
+      while (custom.firstChild) svg.appendChild(custom.firstChild);
+    } else {
+      renderChatMark(svg);
+    }
+  } else if (style === 'spark') {
+    renderSparkMark(svg);
+  } else {
+    renderChatMark(svg);
+  }
   parent.appendChild(svg);
   return svg;
 }
@@ -113,7 +182,8 @@ class ChatView extends ItemView {
 
     const header = root.createDiv({ cls: 'cc-header' });
     const brand = header.createDiv({ cls: 'cc-brand' });
-    spark(brand, 'cc-brand-spark');
+    this.brandEl = brand;
+    logo(brand, 'cc-brand-logo', this.settings);
     brand.createDiv({ cls: 'cc-title', text: 'Codex' });
     const actions = header.createDiv({ cls: 'cc-actions' });
     this.iconButton(actions, 'history', '历史会话', () => void this.showHistory());
@@ -347,7 +417,7 @@ class ChatView extends ItemView {
   emptyState() {
     this.log.empty();
     const empty = this.log.createDiv({ cls: 'cc-empty' });
-    spark(empty, 'cc-empty-spark');
+    logo(empty, 'cc-empty-logo', this.settings);
     empty.createDiv({ cls: 'cc-empty-title', text: greeting() });
     empty.createDiv({ cls: 'cc-empty-text', text: '提问、梳理笔记，或者一起探索新的思路。' });
     const chips = empty.createDiv({ cls: 'cc-suggestions' });
@@ -557,7 +627,7 @@ class ChatView extends ItemView {
     const body = await this.addMessage('assistant', '');
     const row = body.parentElement;
     const status = row.createDiv({ cls: 'cc-status' });
-    spark(status, 'cc-status-spark');
+    logo(status, 'cc-status-logo', this.settings);
     status.createSpan({ cls: 'cc-status-text', text: '正在思考…' });
     this.scrollToBottom();
     this.sendButton.empty(); setIcon(this.sendButton, 'square'); this.sendButton.setAttr('aria-label', '停止'); this.updateSendState();
@@ -608,5 +678,88 @@ class ChatView extends ItemView {
   async onClose() { this.child?.kill(); this.rpc?.close(); }
 }
 
-class SettingsTab extends PluginSettingTab {constructor(app,plugin){super(app,plugin);this.plugin=plugin}display(){this.containerEl.empty();new Setting(this.containerEl).setName('Codex 程序路径').setDesc('默认使用 PATH 中的 codex。修改后请关闭并重新打开聊天面板。').addText(t=>t.setPlaceholder('codex').setValue(this.plugin.settings.executable).onChange(async v=>{this.plugin.settings.executable=v;await this.plugin.saveData(this.plugin.settings)}));}}
-module.exports=class CodexChatPlugin extends Plugin {async onload(){this.settings=Object.assign({executable:'',model:'',effort:'',yolo:false,extraDirs:[]},await this.loadData());this.registerView(VIEW,leaf=>new ChatView(leaf,this));this.addRibbonIcon('message-square','打开 Codex 对话',()=>void this.openChat());this.addCommand({id:'open-codex-chat',name:'打开 Codex 对话',callback:()=>void this.openChat()});this.addSettingTab(new SettingsTab(this.app,this))}async openChat(){let leaf=this.app.workspace.getLeavesOfType(VIEW)[0];if(!leaf){leaf=this.app.workspace.getRightLeaf(false);if(!leaf)return;await leaf.setViewState({type:VIEW,active:true})}await this.app.workspace.revealLeaf(leaf)}};
+class SettingsTab extends PluginSettingTab {
+  constructor(app, plugin) { super(app, plugin); this.plugin = plugin; }
+  display() {
+    const { containerEl } = this;
+    containerEl.empty();
+    new Setting(containerEl)
+      .setName('Codex 程序路径')
+      .setDesc('默认使用 PATH 中的 codex。修改后请关闭并重新打开聊天面板。')
+      .addText(t => t.setPlaceholder('codex').setValue(this.plugin.settings.executable).onChange(async v => {
+        this.plugin.settings.executable = v;
+        await this.plugin.saveData(this.plugin.settings);
+      }));
+
+    new Setting(containerEl)
+      .setName('界面 Logo')
+      .setDesc('用于标题栏、空白页和思考状态。可选用内置标记，或粘贴自己的 SVG。')
+      .addDropdown(d => {
+        for (const [value, label] of Object.entries(LOGO_STYLES)) d.addOption(value, label);
+        d.setValue(this.plugin.settings.logoStyle || 'mark');
+        d.onChange(async v => {
+          this.plugin.settings.logoStyle = v;
+          await this.plugin.saveData(this.plugin.settings);
+          this.plugin.refreshLogos();
+          this.display();
+        });
+      });
+
+    if ((this.plugin.settings.logoStyle || 'mark') === 'custom') {
+      new Setting(containerEl)
+        .setName('自定义 SVG')
+        .setDesc('粘贴完整 <svg>…</svg>。建议 viewBox 为 0 0 24 24；脚本与外链会被忽略。')
+        .addTextArea(t => {
+          t.setPlaceholder('<svg viewBox="0 0 24 24">…</svg>')
+            .setValue(this.plugin.settings.customLogoSvg || '')
+            .onChange(async v => {
+              this.plugin.settings.customLogoSvg = v;
+              await this.plugin.saveData(this.plugin.settings);
+              this.plugin.refreshLogos();
+            });
+          t.inputEl.rows = 8;
+          t.inputEl.addClass('cc-settings-svg');
+        });
+    }
+
+    const preview = containerEl.createDiv({ cls: 'cc-settings-logo-preview' });
+    preview.createDiv({ cls: 'setting-item-name', text: '预览' });
+    const box = preview.createDiv({ cls: 'cc-settings-logo-box' });
+    logo(box, 'cc-settings-logo', this.plugin.settings);
+  }
+}
+
+module.exports = class CodexChatPlugin extends Plugin {
+  async onload() {
+    this.settings = Object.assign({
+      executable: '', model: '', effort: '', yolo: false, extraDirs: [],
+      logoStyle: 'mark', customLogoSvg: '',
+    }, await this.loadData());
+    this.registerView(VIEW, leaf => new ChatView(leaf, this));
+    this.addRibbonIcon('message-square', '打开 Codex 对话', () => void this.openChat());
+    this.addCommand({ id: 'open-codex-chat', name: '打开 Codex 对话', callback: () => void this.openChat() });
+    this.addSettingTab(new SettingsTab(this.app, this));
+  }
+
+  refreshLogos() {
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW)) {
+      const view = leaf.view;
+      if (!(view instanceof ChatView) || !view.brandEl) continue;
+      const title = view.brandEl.querySelector('.cc-title');
+      view.brandEl.querySelectorAll('.cc-logo').forEach(n => n.remove());
+      logo(view.brandEl, 'cc-brand-logo', this.settings);
+      if (title) view.brandEl.appendChild(title);
+      if (!view.log.querySelector('.cc-message') && !view.busy) view.emptyState();
+    }
+  }
+
+  async openChat() {
+    let leaf = this.app.workspace.getLeavesOfType(VIEW)[0];
+    if (!leaf) {
+      leaf = this.app.workspace.getRightLeaf(false);
+      if (!leaf) return;
+      await leaf.setViewState({ type: VIEW, active: true });
+    }
+    await this.app.workspace.revealLeaf(leaf);
+  }
+};

@@ -49,8 +49,12 @@
 .cc-root button { font-family: inherit; cursor: pointer; }
 .cc-hidden { display: none !important; }
 
-.cc-spark { width: 1em; height: 1em; flex: none; }
-.cc-spark line { stroke: var(--cc-accent); stroke-width: 2.1; stroke-linecap: round; }
+.cc-logo { width: 1em; height: 1em; flex: none; color: var(--cc-accent); display: block; }
+.cc-logo-spark line { stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; }
+.cc-logo-tile { fill: currentColor; }
+.cc-logo-fg { fill: var(--cc-bg); }
+.cc-logo-mark.cc-status-logo .cc-logo-tile { fill: currentColor; }
+.cc-logo-mark.cc-status-logo .cc-logo-fg { fill: var(--cc-surface); }
 
 /* ---------- Header ---------- */
 .cc-header {
@@ -58,7 +62,7 @@
   padding: 10px 10px 10px 14px; flex: none;
 }
 .cc-brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.cc-brand-spark { font-size: 20px; }
+.cc-brand-logo { font-size: 20px; }
 .cc-title { font-family: var(--cc-serif); font-size: 17px; font-weight: 500; letter-spacing: -0.01em; color: var(--cc-text); }
 .cc-actions { display: flex; align-items: center; gap: 2px; }
 
@@ -137,7 +141,9 @@
 
 .cc-status { display: flex; align-items: center; gap: 8px; margin-top: 4px; color: var(--cc-muted); font-size: 12.5px; }
 .cc-message-body:not(:empty) + .cc-status { margin-top: 12px; }
-.cc-status-spark { font-size: 22px; animation: cc-spin 2.4s cubic-bezier(.6, 0, .4, 1) infinite; }
+.cc-status-logo { font-size: 18px; }
+.cc-logo-spark.cc-status-logo { font-size: 22px; animation: cc-spin 2.4s cubic-bezier(.6, 0, .4, 1) infinite; }
+.cc-logo-mark.cc-status-logo { animation: cc-pulse 1.6s ease-in-out infinite; }
 .cc-status-text {
   background: linear-gradient(90deg, var(--cc-muted) 0%, var(--cc-faint) 40%, var(--cc-muted) 80%);
   background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
@@ -155,7 +161,7 @@
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   min-height: 100%; padding: 24px 8px 12px; text-align: center; animation: cc-rise .3s ease-out;
 }
-.cc-empty-spark { font-size: 38px; margin-bottom: 14px; }
+.cc-empty-logo { font-size: 42px; margin-bottom: 14px; }
 .cc-empty-title { font-family: var(--cc-serif); font-size: 26px; font-weight: 400; letter-spacing: -0.015em; color: var(--cc-text); }
 .cc-empty-text { max-width: 240px; margin-top: 8px; font-size: 12.5px; line-height: 1.7; color: var(--cc-muted); }
 .cc-suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 22px; max-width: 320px; }
@@ -356,5 +362,17 @@
 @keyframes cc-rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes cc-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes cc-spin { 0% { transform: rotate(0deg) scale(1); } 50% { transform: rotate(180deg) scale(.82); } 100% { transform: rotate(360deg) scale(1); } }
+@keyframes cc-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .55; transform: scale(.92); } }
 @keyframes cc-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @media (prefers-reduced-motion: reduce) { .cc-root *, .cc-root *::before { animation: none !important; transition: none !important; } }
+
+/* ---------- Settings ---------- */
+.cc-settings-logo-preview { margin-top: 8px; }
+.cc-settings-logo-box {
+  display: grid; place-items: center; width: 72px; height: 72px; margin-top: 8px;
+  border-radius: 16px; background: var(--background-secondary); border: 1px solid var(--background-modifier-border);
+}
+.cc-settings-logo { font-size: 40px; color: #c96442; }
+.theme-dark .cc-settings-logo { color: #d97757; }
+.cc-settings-logo .cc-logo-fg { fill: var(--background-primary); }
+textarea.cc-settings-svg { width: 100%; font-family: var(--font-monospace); font-size: 12px; }
